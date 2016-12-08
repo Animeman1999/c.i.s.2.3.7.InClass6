@@ -10,6 +10,7 @@ using cis237InClass6.Models;
 
 namespace cis237InClass6.Controllers
 {
+    [Authorize] //Makes everything under this has to be logged into to see the views
     public class CarsController : Controller
     {
         private CarsJMartinEntities db = new CarsJMartinEntities();
@@ -17,7 +18,54 @@ namespace cis237InClass6.Controllers
         // GET: Cars
         public ActionResult Index()
         {
-            return View(db.Cars.ToList());
+            //Setup a variable to hold the Cars data set
+            DbSet<Car> CarToSearch = db.Cars;
+
+            //Setup some strings to hold the data that might be in the session.
+            //If there is nothing in the session we can still use these variables
+            //as a default value.
+            string filterMake = "";
+            string filterMin = "";
+            string filterMax = "";
+
+            //Define a default min and max for the cylinders
+            int min = 0;
+            int max = 16;
+
+            //Check to see if there is a value in the session, and if there is,
+            //assighn it to the variable that we setup to hold the value.
+            if (Session["make"] != null && !string.IsNullOrWhiteSpace((string)Session["make"]))
+            {
+                filterMake = (string)Session["make"];
+            }
+            if (Session["min"] != null && !string.IsNullOrWhiteSpace((string)Session["min"]))
+            {
+                filterMin = (string)Session["min"];
+                min = Int32.Parse(filterMin);
+            }
+            if (Session["max"] != null && !string.IsNullOrWhiteSpace((string)Session["max"]))
+            {
+                filterMax = (string)Session["max"];
+                max = Int32.Parse(filterMax);
+            }
+
+            //Do the filter on the carsToSearch Dataset. Use the where that we used before
+            //when doing EF work, only this time send in more lamda expressions to narrow it 
+            //down further. Since we setup default values for each of the filter parameters,
+            //min, max, and filterMake, we can count on this always running with no errors.
+            IEnumerable<Car> filtered =  CarToSearch.Where(car => car.cylinders  >= min &&
+                                                                car.cylinders <= max &&
+                                                                car.make.Contains(filterMake));
+
+            //Place the string represntation of the values in the session into the 
+            //ViewBag so that they can be retrieved and displayed o the view.
+            ViewBag.filterMake = filterMake;
+            ViewBag.filterMin = filterMin;
+            ViewBag.filterMax = filterMax;
+
+
+            //Return the view with a filtered selection of the cars.
+            return View(filtered);
         }
 
         // GET: Cars/Details/5
@@ -121,6 +169,35 @@ namespace cis237InClass6.Controllers
         {
             
             return Json(db.Cars.ToList(), JsonRequestBehavior.AllowGet);
+        }
+
+        //This is the filter method. It will take in the data submitted fomr
+        //the form and store it in the session so we can access it later.
+        //Add the HttpPost to make sure it is a post and ValidateAnitForgeryToken
+        //to make sure that the person submitting the form got the form from the
+        //the server.
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult Filter()
+        {
+            // return Content("made it to filter"); //This was a test to see if in the correct area
+
+            //Get the form data that wwas sent out of the Request object
+            //The string that is used as a key to get the data matches the
+            //name property of the form control. (for us this is the first parameter)
+            String make = Request.Form.Get("make");
+            String min = Request.Form.Get("min");
+            String max = Request.Form.Get("max");
+
+            //Store the form data into the session so that it can be retrieved later 
+            //on to filter the data
+            Session["make"] = make;
+            Session["min"] = min;
+            Session["max"] = max;
+
+            //Redirect teh user to the index page. We will do the work of actualy
+            //filtering the list in the index method
+            return RedirectToAction("Index");
         }
 
         protected override void Dispose(bool disposing)
